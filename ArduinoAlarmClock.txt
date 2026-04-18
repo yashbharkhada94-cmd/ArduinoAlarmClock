@@ -1,0 +1,132 @@
+#include <Wire.h>
+#include <TimeLib.h>
+#include <DS1307RTC.h>
+#include <LiquidCrystal.h>
+
+tmElements_t tm;
+LiquidCrystal LCD (7, 6, 5, 4, 3, 2);
+
+#define set_save 10
+#define incrhour 9     // <-- STOP ALARM BUTTON
+#define incrminute 8
+#define buzzer 11
+
+int hours = 5, minutes = 0;
+bool alarmActive = false;
+bool alarmScreenShown = false;
+
+void setalarms (int, int, int);
+void time_date();
+
+void setup()
+{
+  pinMode (buzzer, OUTPUT);
+  pinMode (set_save, INPUT_PULLUP);
+  pinMode (incrhour, INPUT_PULLUP);
+  pinMode (incrminute, INPUT_PULLUP);
+
+  LCD.begin(16, 2);
+  LCD.clear();
+  LCD.setCursor(0, 0);
+  LCD.print("    Welcome ");	
+  delay(1500);
+  LCD.clear();
+}
+
+void loop()
+{
+  time_date();
+
+  // enter setting mode
+  if (digitalRead(set_save)==LOW)
+  {
+    delay(170);
+    setalarms (tm.Hour, tm.Minute, tm.Second);
+  }
+
+  // alarm fire check
+  if (!alarmActive && tm.Hour == hours && tm.Minute == minutes && tm.Second < 2)
+  {
+    alarmActive = true;
+  }
+
+  // alarm active behaviour
+  if (alarmActive)
+  {
+    if (!alarmScreenShown)
+    {
+      LCD.clear();
+      LCD.setCursor(0,0);
+      LCD.print("!!! WAKE UP !!!");
+      LCD.setCursor(0,1);
+      LCD.print("Press HOUR stop");
+      alarmScreenShown = true;
+    }
+
+    tone(buzzer, 2000);
+
+    // STOP ALARM WHEN HOUR BUTTON IS PRESSED
+    if (digitalRead(incrhour)==LOW)
+    {
+      while(digitalRead(incrhour)==LOW); // wait release
+      noTone(buzzer);
+      alarmActive = false;
+      alarmScreenShown = false;
+      LCD.clear();
+      delay(200);
+    }
+
+    return; // HOLD ALARM SCREEN
+  }
+}
+
+void time_date()
+{
+  if (RTC.read(tm))
+  {
+    LCD.setCursor(0,0);
+    LCD.print("Time=" +  String(tm.Hour) + ":" + String(tm.Minute) + ":" + String(tm.Second )+ "   ");
+    LCD.setCursor(0,1);
+    LCD.print("Date="  + String(tm.Day) + "/" + String(tm.Month)  + "/" + String(tmYearToCalendar(tm.Year)) + "   ");
+  }
+  delay (170);
+}
+
+void setalarms(int HOURS, int MINUTES, int SECONDS)
+{
+  LCD.clear();
+  LCD.setCursor(0, 0);
+  LCD.print("      Set Alarm     ");
+
+  while (1)
+  {
+    LCD.setCursor(0,1);
+    LCD.print((String)HOURS + ":" + (String)MINUTES + ":" + (String)SECONDS + "   ");
+
+    if (digitalRead(incrhour)==LOW && digitalRead(incrminute)==HIGH)
+    {
+      HOURS = (HOURS + 1) % 24;
+      delay(170);
+    }
+
+    if (digitalRead(incrminute)==LOW && digitalRead(incrhour)==HIGH)
+    {
+      MINUTES = (MINUTES + 1) % 60;
+      delay(170);
+    }
+
+    if (digitalRead(set_save)==LOW)
+    {
+      hours = HOURS;
+      minutes = MINUTES;
+      LCD.clear();
+      LCD.setCursor(0,0);
+      LCD.print(" Alarm Time Set ");
+      LCD.setCursor(0,1);
+      LCD.print((String)hours + ":" + (String)minutes);
+      delay(2000);
+      LCD.clear();
+      break;
+    }
+  }
+}
